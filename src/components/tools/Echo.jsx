@@ -1,0 +1,16 @@
+import React, { useEffect, useRef, useState } from "react";
+import { Activity, MessageSquare, Send, ShieldCheck, Sparkles, Trash2, X, Zap } from "lucide-react";
+import { apiBase } from "../../api.js";
+import { useSocket, StatusPill, ToolIntro } from "../common.jsx";
+
+function Echo({token,onError}) {
+  const ws=useSocket(`${apiBase.replace(/^http/,"ws")}/ws/echo`,token,false);
+  const [message,setMessage]=useState("");
+  const scrollRef=useRef(null);
+  useEffect(()=>{if(ws.lastError)onError(ws.lastError);},[ws.lastError,onError]);
+  useEffect(()=>{scrollRef.current?.scrollTo({top:scrollRef.current.scrollHeight,behavior:"smooth"});},[ws.messages]);
+  function send(e){e.preventDefault();if(!message.trim())return;try{ws.send(message);ws.setMessages(old=>[...old,{id:Date.now(),direction:"sent",text:message,time:new Date()}]);setMessage("");}catch(e){onError(e.message);}}
+  return <div className="tool-layout"><section className="panel tool-panel"><ToolIntro icon={MessageSquare} kicker="WEBSOCKET TOOL · 02" title="Text echo" description="Send multiple messages and receive replies on the same connection." status={ws.status} action={ws.status==="connected"?ws.disconnect:ws.connect} actionLabel={ws.status==="connected"?"Disconnect":"Connect"} actionIcon={ws.status==="connected"?X:Zap}/><div className="chat-toolbar"><span><span className="connection-dot"/>{ws.status==="connected"?"Listening for messages":"Connect to start a conversation"}</span><button className="text-button" onClick={()=>ws.setMessages([])} disabled={!ws.messages.length}><Trash2 size={14}/> Clear log</button></div><div className="chat-log" ref={scrollRef} aria-live="polite">{ws.messages.length===0?<div className="chat-empty"><div className="empty-icon"><MessageSquare size={22}/></div><b>Your message log is empty</b><p>Connect to the WebSocket and send a message to test the echo service.</p></div>:ws.messages.map(m=><div className={`chat-message ${m.direction==="sent"?"chat-sent":"chat-received"}`} key={m.id}><div className="chat-message-meta"><span>{m.direction==="sent"?"YOU":"SERVICE"}</span><time>{m.time.toLocaleTimeString()}</time></div><p>{m.text}</p></div>)}</div><form className="chat-compose" onSubmit={send}><input value={message} onChange={e=>setMessage(e.target.value)} placeholder="Type a message to echo…" aria-label="Message to send" disabled={ws.status!=="connected"}/><button className="primary-button" disabled={ws.status!=="connected"||!message.trim()}><Send size={16}/> Send</button></form><div className="panel-bottom"><span>WebSocket <code>/ws/echo</code></span><span>Multiple messages supported</span></div></section><section className="panel side-panel"><div className="side-panel-head"><div><h3><ShieldCheck size={17}/> Connection details</h3><p>Live connection health.</p></div></div><div className="detail-list"><div><span>Status</span><StatusPill status={ws.status}/></div><div><span>Protocol</span><b>WebSocket (WSS)</b></div><div><span>Messages logged</span><b>{ws.messages.length}</b></div><div><span>Endpoint</span><code>/ws/echo</code></div></div><div className="tip-card"><Sparkles size={16}/><div><b>How it works</b><p>The server echoes text on the same connection. You can send multiple messages without reconnecting.</p></div></div></section></div>;
+}
+
+export default Echo;
